@@ -55,7 +55,7 @@ jobs:
 
       - name: Compile requirements.txt
         run: |
-          uv pip compile pyproject.toml
+          uv pip compile pyproject.toml > requirements.txt
 
       - name: Validate requirements.txt
         run: |
@@ -63,6 +63,6 @@ jobs:
           echo "Files changed: $files_changed"
           if [[ $files_changed == *"requirements.txt"* ]]; then
             echo "requirements.txt dependencies do not match pyproject.toml"
-            echo "Please update requirements.txt by running 'uv pip compile pyproject.toml', from the project root."
+            echo "Please update requirements.txt by running 'uv pip compile pyproject.toml > requirements.txt', from the project root."
             exit 1
           fi
