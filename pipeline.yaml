@@ -2,6 +2,8 @@
 # Name: instructlab
 # Description: InstructLab pipeline
 # Inputs:
+#    eval_gpu_identifier: str [Default: 'nvidia.com/gpu']
+#    eval_judge_secret: str [Default: 'teacher-server']
 #    final_eval_batch_size: str [Default: 'auto']
 #    final_eval_few_shots: int [Default: 5.0]
 #    final_eval_max_workers: str [Default: 'auto']
@@ -14,15 +16,21 @@
 #    sdg_pipeline: str [Default: '/usr/share/instructlab/sdg/pipelines/agentic']
 #    sdg_repo_branch: str
 #    sdg_repo_pr: int
+#    sdg_repo_secret: str
 #    sdg_repo_url: str [Default: 'https://github.com/instructlab/taxonomy.git']
 #    sdg_sample_size: float [Default: 1.0]
 #    sdg_scale_factor: int [Default: 30.0]
+#    sdg_teacher_secret: str [Default: 'judge-server']
+#    train_cpu_count: str
 #    train_effective_batch_size_phase_1: int [Default: 128.0]
 #    train_effective_batch_size_phase_2: int [Default: 3840.0]
+#    train_gpu_identifier: str [Default: 'nvidia.com/gpu']
 #    train_learning_rate_phase_1: float [Default: 2e-05]
 #    train_learning_rate_phase_2: float [Default: 6e-06]
 #    train_max_batch_len: int [Default: 5000.0]
+#    train_memory_count: str
 #    train_nnodes: int [Default: 2.0]
+#    train_node_selectors: dict
 #    train_nproc_per_node: int [Default: 2.0]
 #    train_num_epochs_phase_1: int [Default: 7.0]
 #    train_num_epochs_phase_2: int [Default: 10.0]
@@ -30,8 +38,7 @@
 #    train_num_warmup_steps_phase_2: int [Default: 1000.0]
 #    train_save_samples: int [Default: 250000.0]
 #    train_seed: int [Default: 42.0]
-# Outputs:
-#    generate-metrics-report-op-metrics: system.Metrics
+#    train_tolerations: list
 components:
   comp-createpvc:
     executorLabel: exec-createpvc
@@ -383,6 +390,8 @@ components:
       parameters:
         base_image:
           parameterType: STRING
+        cpu_count:
+          parameterType: STRING
         delete_after_done:
           defaultValue: false
           isOptional: true
@@ -391,6 +400,8 @@ components:
           defaultValue: 3840.0
           isOptional: true
           parameterType: NUMBER_INTEGER
+        gpu_identifier:
+          parameterType: STRING
         input_pvc_name:
           parameterType: STRING
         job_timeout:
@@ -405,6 +416,8 @@ components:
           defaultValue: 20000.0
           isOptional: true
           parameterType: NUMBER_INTEGER
+        memory_count:
+          parameterType: STRING
         model_pvc_name:
           parameterType: STRING
         name_suffix:
@@ -413,6 +426,8 @@ components:
           defaultValue: 2.0
           isOptional: true
           parameterType: NUMBER_INTEGER
+        node_selectors:
+          parameterType: STRUCT
         nproc_per_node:
           defaultValue: 3.0
           isOptional: true
@@ -437,6 +452,8 @@ components:
           defaultValue: 42.0
           isOptional: true
           parameterType: NUMBER_INTEGER
+        tolerations:
+          parameterType: LIST
     outputDefinitions:
       artifacts:
         pytorchjob_output_yaml:
@@ -449,6 +466,8 @@ components:
       parameters:
         base_image:
           parameterType: STRING
+        cpu_count:
+          parameterType: STRING
         delete_after_done:
           defaultValue: false
           isOptional: true
@@ -457,6 +476,8 @@ components:
           defaultValue: 3840.0
           isOptional: true
           parameterType: NUMBER_INTEGER
+        gpu_identifier:
+          parameterType: STRING
         input_pvc_name:
           parameterType: STRING
         job_timeout:
@@ -471,6 +492,8 @@ components:
           defaultValue: 20000.0
           isOptional: true
           parameterType: NUMBER_INTEGER
+        memory_count:
+          parameterType: STRING
         model_pvc_name:
           parameterType: STRING
         name_suffix:
@@ -479,6 +502,8 @@ components:
           defaultValue: 2.0
           isOptional: true
           parameterType: NUMBER_INTEGER
+        node_selectors:
+          parameterType: STRUCT
         nproc_per_node:
           defaultValue: 3.0
           isOptional: true
@@ -503,6 +528,8 @@ components:
           defaultValue: 42.0
           isOptional: true
           parameterType: NUMBER_INTEGER
+        tolerations:
+          parameterType: LIST
     outputDefinitions:
       artifacts:
         pytorchjob_output_yaml:
@@ -855,27 +882,30 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef pytorch_job_launcher_op(\n    pytorchjob_output_yaml: dsl.Output[dsl.Artifact],\n\
-          \    model_pvc_name: str,\n    input_pvc_name: str,\n    output_pvc_name:\
-          \ str,\n    name_suffix: str,\n    phase_num: int,\n    base_image: str,\n\
-          \    nproc_per_node: int = 3,\n    nnodes: int = 2,\n    num_epochs: int\
-          \ = 2,\n    effective_batch_size: int = 3840,\n    learning_rate: float\
-          \ = 1e-4,\n    num_warmup_steps: int = 800,\n    save_samples: int = 0,\n\
-          \    max_batch_len: int = 20000,\n    seed: int = 42,\n    job_timeout:\
-          \ int = 86400,\n    delete_after_done: bool = False,\n):\n    import logging\n\
-          \    import os\n\n    from kubeflow.training import TrainingClient, models\n\
-          \    from kubeflow.training.utils import utils as kfto_utils\n\n    def\
-          \ list_phase1_final_model():\n        model_dir = \"/output/phase_1/model/hf_format\"\
-          \n        model_list = os.listdir(model_dir)\n        newest_idx = max(\n\
-          \            (os.path.getmtime(f\"{model_dir}/{model}\"), i)\n         \
-          \   for i, model in enumerate(model_list)\n        )[-1]\n        newest_model\
-          \ = model_list[newest_idx]\n        return f\"{model_dir}/{newest_model}\"\
+          \ *\n\ndef pytorch_job_launcher_op(\n    gpu_identifier: str,\n    cpu_count:\
+          \ str,\n    memory_count: str,\n    tolerations: list,\n    node_selectors:\
+          \ dict,\n    pytorchjob_output_yaml: dsl.Output[dsl.Artifact],\n    model_pvc_name:\
+          \ str,\n    input_pvc_name: str,\n    output_pvc_name: str,\n    name_suffix:\
+          \ str,\n    phase_num: int,\n    base_image: str,\n    nproc_per_node: int\
+          \ = 3,\n    nnodes: int = 2,\n    num_epochs: int = 2,\n    effective_batch_size:\
+          \ int = 3840,\n    learning_rate: float = 1e-4,\n    num_warmup_steps: int\
+          \ = 800,\n    save_samples: int = 0,\n    max_batch_len: int = 20000,\n\
+          \    seed: int = 42,\n    job_timeout: int = 86400,\n    delete_after_done:\
+          \ bool = False,\n):\n    import logging\n    import os\n\n    from kubeflow.training\
+          \ import TrainingClient, models\n    from kubeflow.training.utils import\
+          \ utils as kfto_utils\n\n    def list_phase1_final_model():\n        model_dir\
+          \ = \"/output/phase_1/model/hf_format\"\n        model_list = os.listdir(model_dir)\n\
+          \        newest_idx = max(\n            (os.path.getmtime(f\"{model_dir}/{model}\"\
+          ), i)\n            for i, model in enumerate(model_list)\n        )[-1]\n\
+          \        newest_model = model_list[newest_idx]\n        return f\"{model_dir}/{newest_model}\"\
           \n\n    if phase_num == 1:\n        path_to_model = \"/input_model\"\n \
           \       path_to_data = \"/input_data/knowledge/data.jsonl\"\n    elif phase_num\
           \ == 2:\n        path_to_model = list_phase1_final_model()\n        path_to_data\
           \ = \"/input_data/skills/data.jsonl\"\n    else:\n        raise RuntimeError(f\"\
-          Unsupported value of {phase_num=}\")\n\n    resources_per_worker = {\"nvidia.com/gpu\"\
-          : nproc_per_node}\n\n    name = f\"train-phase-{phase_num}-{name_suffix.rstrip('-sdg')}\"\
+          Unsupported value of {phase_num=}\")\n\n    if gpu_identifier == \"\":\n\
+          \        raise RuntimeError(f\"GPU identifier cannot be empty\")\n    resources_per_worker\
+          \ = {\n        'cpu': cpu_count,\n        'memory': memory_count,\n    \
+          \    gpu_identifier: nproc_per_node\n    }\n\n    name = f\"train-phase-{phase_num}-{name_suffix.rstrip('-sdg')}\"\
           \n    command = [\"/bin/sh\", \"-c\", \"--\"]\n\n    master_args = [\n \
           \       f\"\"\"\n        echo \"Running phase {phase_num}\"\n        echo\
           \ \"Using {path_to_model} model for training\"\n        echo \"Using {path_to_data}\
@@ -939,15 +969,23 @@ deploymentSpec:
           \        volume_mounts=volume_mounts_worker,\n    )\n    worker_container_spec.command\
           \ = command\n    worker_container_spec.args = worker_args\n    worker_container_spec.env\
           \ = env_vars\n\n    # create master pod spec\n    master_pod_template_spec\
-          \ = kfto_utils.get_pod_template_spec(\n        containers=[master_container_spec],\n\
-          \        volumes=volumes,\n    )\n\n    # create worker pod spec\n    worker_pod_template_spec\
-          \ = kfto_utils.get_pod_template_spec(\n        containers=[worker_container_spec],\n\
-          \        volumes=volumes,\n    )\n\n    logging.getLogger(__name__).setLevel(logging.INFO)\n\
+          \ = models.V1PodTemplateSpec(\n        metadata=models.V1ObjectMeta(\n \
+          \           annotations={ISTIO_SIDECAR_INJECTION: \"false\"}\n        ),\n\
+          \        spec=models.V1PodSpec(\n            init_containers=None,\n   \
+          \         containers=[master_container_spec],\n            volumes=volumes,\n\
+          \            tolerations=tolerations,\n            node_selector=node_selectors,\n\
+          \        ),\n    )\n\n    # create worker pod spec\n    worker_pod_template_spec\
+          \ = models.V1PodTemplateSpec(\n        metadata=models.V1ObjectMeta(\n \
+          \           annotations={ISTIO_SIDECAR_INJECTION: \"false\"}\n        ),\n\
+          \        spec=models.V1PodSpec(\n            init_containers=None,\n   \
+          \         containers=[worker_container_spec],\n            volumes=volumes,\n\
+          \            tolerations=tolerations,\n            node_selector=node_selectors,\n\
+          \        ),\n    )\n\n    logging.getLogger(__name__).setLevel(logging.INFO)\n\
           \    logging.info(\"Generating job template.\")\n    logging.info(\"Creating\
           \ TrainingClient.\")\n\n    # Initialize training client\n    # This also\
           \ finds the namespace from /var/run/secrets/kubernetes.io/serviceaccount/namespace\n\
           \    # And it also loads the kube config\n    training_client = TrainingClient()\n\
-          \    namespace = training_client.namespace\n\n    # Create pytorch job spec\n\
+          \    namespace = training_client.namespace\n    # Create pytorch job spec\n\
           \    job_template = kfto_utils.get_pytorchjob_template(\n        name=name,\n\
           \        namespace=namespace,\n        worker_pod_template_spec=worker_pod_template_spec,\n\
           \        master_pod_template_spec=master_pod_template_spec,\n        num_workers=nnodes,\n\
@@ -985,27 +1023,30 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef pytorch_job_launcher_op(\n    pytorchjob_output_yaml: dsl.Output[dsl.Artifact],\n\
-          \    model_pvc_name: str,\n    input_pvc_name: str,\n    output_pvc_name:\
-          \ str,\n    name_suffix: str,\n    phase_num: int,\n    base_image: str,\n\
-          \    nproc_per_node: int = 3,\n    nnodes: int = 2,\n    num_epochs: int\
-          \ = 2,\n    effective_batch_size: int = 3840,\n    learning_rate: float\
-          \ = 1e-4,\n    num_warmup_steps: int = 800,\n    save_samples: int = 0,\n\
-          \    max_batch_len: int = 20000,\n    seed: int = 42,\n    job_timeout:\
-          \ int = 86400,\n    delete_after_done: bool = False,\n):\n    import logging\n\
-          \    import os\n\n    from kubeflow.training import TrainingClient, models\n\
-          \    from kubeflow.training.utils import utils as kfto_utils\n\n    def\
-          \ list_phase1_final_model():\n        model_dir = \"/output/phase_1/model/hf_format\"\
-          \n        model_list = os.listdir(model_dir)\n        newest_idx = max(\n\
-          \            (os.path.getmtime(f\"{model_dir}/{model}\"), i)\n         \
-          \   for i, model in enumerate(model_list)\n        )[-1]\n        newest_model\
-          \ = model_list[newest_idx]\n        return f\"{model_dir}/{newest_model}\"\
+          \ *\n\ndef pytorch_job_launcher_op(\n    gpu_identifier: str,\n    cpu_count:\
+          \ str,\n    memory_count: str,\n    tolerations: list,\n    node_selectors:\
+          \ dict,\n    pytorchjob_output_yaml: dsl.Output[dsl.Artifact],\n    model_pvc_name:\
+          \ str,\n    input_pvc_name: str,\n    output_pvc_name: str,\n    name_suffix:\
+          \ str,\n    phase_num: int,\n    base_image: str,\n    nproc_per_node: int\
+          \ = 3,\n    nnodes: int = 2,\n    num_epochs: int = 2,\n    effective_batch_size:\
+          \ int = 3840,\n    learning_rate: float = 1e-4,\n    num_warmup_steps: int\
+          \ = 800,\n    save_samples: int = 0,\n    max_batch_len: int = 20000,\n\
+          \    seed: int = 42,\n    job_timeout: int = 86400,\n    delete_after_done:\
+          \ bool = False,\n):\n    import logging\n    import os\n\n    from kubeflow.training\
+          \ import TrainingClient, models\n    from kubeflow.training.utils import\
+          \ utils as kfto_utils\n\n    def list_phase1_final_model():\n        model_dir\
+          \ = \"/output/phase_1/model/hf_format\"\n        model_list = os.listdir(model_dir)\n\
+          \        newest_idx = max(\n            (os.path.getmtime(f\"{model_dir}/{model}\"\
+          ), i)\n            for i, model in enumerate(model_list)\n        )[-1]\n\
+          \        newest_model = model_list[newest_idx]\n        return f\"{model_dir}/{newest_model}\"\
           \n\n    if phase_num == 1:\n        path_to_model = \"/input_model\"\n \
           \       path_to_data = \"/input_data/knowledge/data.jsonl\"\n    elif phase_num\
           \ == 2:\n        path_to_model = list_phase1_final_model()\n        path_to_data\
           \ = \"/input_data/skills/data.jsonl\"\n    else:\n        raise RuntimeError(f\"\
-          Unsupported value of {phase_num=}\")\n\n    resources_per_worker = {\"nvidia.com/gpu\"\
-          : nproc_per_node}\n\n    name = f\"train-phase-{phase_num}-{name_suffix.rstrip('-sdg')}\"\
+          Unsupported value of {phase_num=}\")\n\n    if gpu_identifier == \"\":\n\
+          \        raise RuntimeError(f\"GPU identifier cannot be empty\")\n    resources_per_worker\
+          \ = {\n        'cpu': cpu_count,\n        'memory': memory_count,\n    \
+          \    gpu_identifier: nproc_per_node\n    }\n\n    name = f\"train-phase-{phase_num}-{name_suffix.rstrip('-sdg')}\"\
           \n    command = [\"/bin/sh\", \"-c\", \"--\"]\n\n    master_args = [\n \
           \       f\"\"\"\n        echo \"Running phase {phase_num}\"\n        echo\
           \ \"Using {path_to_model} model for training\"\n        echo \"Using {path_to_data}\
@@ -1069,15 +1110,23 @@ deploymentSpec:
           \        volume_mounts=volume_mounts_worker,\n    )\n    worker_container_spec.command\
           \ = command\n    worker_container_spec.args = worker_args\n    worker_container_spec.env\
           \ = env_vars\n\n    # create master pod spec\n    master_pod_template_spec\
-          \ = kfto_utils.get_pod_template_spec(\n        containers=[master_container_spec],\n\
-          \        volumes=volumes,\n    )\n\n    # create worker pod spec\n    worker_pod_template_spec\
-          \ = kfto_utils.get_pod_template_spec(\n        containers=[worker_container_spec],\n\
-          \        volumes=volumes,\n    )\n\n    logging.getLogger(__name__).setLevel(logging.INFO)\n\
+          \ = models.V1PodTemplateSpec(\n        metadata=models.V1ObjectMeta(\n \
+          \           annotations={ISTIO_SIDECAR_INJECTION: \"false\"}\n        ),\n\
+          \        spec=models.V1PodSpec(\n            init_containers=None,\n   \
+          \         containers=[master_container_spec],\n            volumes=volumes,\n\
+          \            tolerations=tolerations,\n            node_selector=node_selectors,\n\
+          \        ),\n    )\n\n    # create worker pod spec\n    worker_pod_template_spec\
+          \ = models.V1PodTemplateSpec(\n        metadata=models.V1ObjectMeta(\n \
+          \           annotations={ISTIO_SIDECAR_INJECTION: \"false\"}\n        ),\n\
+          \        spec=models.V1PodSpec(\n            init_containers=None,\n   \
+          \         containers=[worker_container_spec],\n            volumes=volumes,\n\
+          \            tolerations=tolerations,\n            node_selector=node_selectors,\n\
+          \        ),\n    )\n\n    logging.getLogger(__name__).setLevel(logging.INFO)\n\
           \    logging.info(\"Generating job template.\")\n    logging.info(\"Creating\
           \ TrainingClient.\")\n\n    # Initialize training client\n    # This also\
           \ finds the namespace from /var/run/secrets/kubernetes.io/serviceaccount/namespace\n\
           \    # And it also loads the kube config\n    training_client = TrainingClient()\n\
-          \    namespace = training_client.namespace\n\n    # Create pytorch job spec\n\
+          \    namespace = training_client.namespace\n    # Create pytorch job spec\n\
           \    job_template = kfto_utils.get_pytorchjob_template(\n        name=name,\n\
           \        namespace=namespace,\n        worker_pod_template_spec=worker_pod_template_spec,\n\
           \        master_pod_template_spec=master_pod_template_spec,\n        num_workers=nnodes,\n\
@@ -1126,9 +1175,7 @@ deploymentSpec:
           \ torch\n    from instructlab.eval.mmlu import MMLUBranchEvaluator\n   \
           \ from instructlab.eval.mt_bench import MTBenchBranchEvaluator\n    from\
           \ instructlab.model.evaluate import qa_pairs_to_qna_to_avg_scores, sort_score\n\
-          \n    judge_api_key = os.getenv(\"JUDGE_API_KEY\", \"\")\n    judge_model_name\
-          \ = os.getenv(\"JUDGE_NAME\")\n    judge_endpoint = os.getenv(\"JUDGE_ENDPOINT\"\
-          )\n    judge_ca_cert_path = os.getenv(\"JUDGE_CA_CERT_PATH\")\n    use_tls\
+          \n    judge_ca_cert_path = os.getenv(\"JUDGE_CA_CERT_PATH\")\n    use_tls\
           \ = os.path.exists(judge_ca_cert_path) and (\n        os.path.getsize(judge_ca_cert_path)\
           \ > 0\n    )\n    judge_http_client = httpx.Client(verify=judge_ca_cert_path)\
           \ if use_tls else None\n\n    print(\"Starting Final Eval...\")\n\n    def\
@@ -1360,8 +1407,8 @@ deploymentSpec:
         image: registry.redhat.io/rhelai1/instructlab-nvidia-rhel9@sha256:05cfba1fb13ed54b1de4d021da2a31dd78ba7d8cc48e10c7fe372815899a18ae
         resources:
           accelerator:
-            count: '1'
-            type: nvidia.com/gpu
+            resourceCount: '1'
+            resourceType: '{{$.inputs.parameters[''pipelinechannel--eval_gpu_identifier'']}}'
     exec-run-mt-bench-op:
       container:
         args:
@@ -1490,8 +1537,8 @@ deploymentSpec:
         image: registry.redhat.io/rhelai1/instructlab-nvidia-rhel9@sha256:05cfba1fb13ed54b1de4d021da2a31dd78ba7d8cc48e10c7fe372815899a18ae
         resources:
           accelerator:
-            count: '1'
-            type: nvidia.com/gpu
+            resourceCount: '1'
+            resourceType: '{{$.inputs.parameters[''pipelinechannel--eval_gpu_identifier'']}}'
     exec-sdg-op:
       container:
         args:
@@ -1631,12 +1678,6 @@ pipelineInfo:
   name: instructlab
 root:
   dag:
-    outputs:
-      artifacts:
-        generate-metrics-report-op-metrics:
-          artifactSelectors:
-          - outputArtifactKey: metrics
-            producerSubtask: generate-metrics-report-op
     tasks:
       createpvc:
         cachingOptions:
@@ -1899,8 +1940,12 @@ root:
             base_image:
               runtimeValue:
                 constant: registry.redhat.io/rhelai1/instructlab-nvidia-rhel9@sha256:05cfba1fb13ed54b1de4d021da2a31dd78ba7d8cc48e10c7fe372815899a18ae
+            cpu_count:
+              componentInputParameter: train_cpu_count
             effective_batch_size:
               componentInputParameter: train_effective_batch_size_phase_1
+            gpu_identifier:
+              componentInputParameter: train_gpu_identifier
             input_pvc_name:
               taskOutputParameter:
                 outputParameterKey: name
@@ -1909,6 +1954,8 @@ root:
               componentInputParameter: train_learning_rate_phase_1
             max_batch_len:
               componentInputParameter: train_max_batch_len
+            memory_count:
+              componentInputParameter: train_memory_count
             model_pvc_name:
               taskOutputParameter:
                 outputParameterKey: name
@@ -1919,6 +1966,8 @@ root:
                 producerTask: createpvc
             nnodes:
               componentInputParameter: train_nnodes
+            node_selectors:
+              componentInputParameter: train_node_selectors
             nproc_per_node:
               componentInputParameter: train_nproc_per_node
             num_epochs:
@@ -1936,6 +1985,8 @@ root:
               componentInputParameter: train_save_samples
             seed:
               componentInputParameter: train_seed
+            tolerations:
+              componentInputParameter: train_tolerations
         taskInfo:
           name: pytorch-job-launcher-op
       pytorch-job-launcher-op-2:
@@ -1952,8 +2003,12 @@ root:
             base_image:
               runtimeValue:
                 constant: registry.redhat.io/rhelai1/instructlab-nvidia-rhel9@sha256:05cfba1fb13ed54b1de4d021da2a31dd78ba7d8cc48e10c7fe372815899a18ae
+            cpu_count:
+              componentInputParameter: train_cpu_count
             effective_batch_size:
               componentInputParameter: train_effective_batch_size_phase_2
+            gpu_identifier:
+              componentInputParameter: train_gpu_identifier
             input_pvc_name:
               taskOutputParameter:
                 outputParameterKey: name
@@ -1962,6 +2017,8 @@ root:
               componentInputParameter: train_learning_rate_phase_2
             max_batch_len:
               componentInputParameter: train_max_batch_len
+            memory_count:
+              componentInputParameter: train_memory_count
             model_pvc_name:
               taskOutputParameter:
                 outputParameterKey: name
@@ -1972,6 +2029,8 @@ root:
                 producerTask: createpvc
             nnodes:
               componentInputParameter: train_nnodes
+            node_selectors:
+              componentInputParameter: train_node_selectors
             nproc_per_node:
               componentInputParameter: train_nproc_per_node
             num_epochs:
@@ -1989,6 +2048,8 @@ root:
               componentInputParameter: train_save_samples
             seed:
               componentInputParameter: train_seed
+            tolerations:
+              componentInputParameter: train_tolerations
         taskInfo:
           name: pytorch-job-launcher-op-2
       run-final-eval-op:
@@ -2002,6 +2063,9 @@ root:
         - run-mt-bench-op
         inputs:
           parameters:
+            accelerator_type:
+              runtimeValue:
+                constant: '{{$.inputs.parameters[''pipelinechannel--eval_gpu_identifier'']}}'
             base_branch:
               componentInputParameter: sdg_repo_branch
             base_model_dir:
@@ -2020,6 +2084,8 @@ root:
               componentInputParameter: final_eval_max_workers
             merge_system_user_message:
               componentInputParameter: final_eval_merge_system_user_message
+            pipelinechannel--eval_gpu_identifier:
+              componentInputParameter: eval_gpu_identifier
         taskInfo:
           name: run-final-eval-op
       run-mt-bench-op:
@@ -2031,6 +2097,9 @@ root:
         - pytorch-job-launcher-op-2
         inputs:
           parameters:
+            accelerator_type:
+              runtimeValue:
+                constant: '{{$.inputs.parameters[''pipelinechannel--eval_gpu_identifier'']}}'
             max_workers:
               componentInputParameter: mt_bench_max_workers
             merge_system_user_message:
@@ -2038,6 +2107,8 @@ root:
             models_folder:
               runtimeValue:
                 constant: /output/phase_2/model/hf_format
+            pipelinechannel--eval_gpu_identifier:
+              componentInputParameter: eval_gpu_identifier
         taskInfo:
           name: run-mt-bench-op
       sdg-op:
@@ -2094,6 +2165,18 @@ root:
           name: taxonomy-to-artifact-op
   inputDefinitions:
     parameters:
+      eval_gpu_identifier:
+        defaultValue: nvidia.com/gpu
+        description: General evaluation parameter. Type of Pod accelerator used for
+          Final & MT bench evaluation (e.g. "nvidia.com/gpu").
+        isOptional: true
+        parameterType: STRING
+      eval_judge_secret:
+        defaultValue: teacher-server
+        description: General evaluation parameter. Points to a secret name holding
+          access info/credentials to access a Judge server.
+        isOptional: true
+        parameterType: STRING
       final_eval_batch_size:
         defaultValue: auto
         description: Final model evaluation parameter for MMLU. Batch size for evaluation.
@@ -2167,6 +2250,11 @@ root:
           git repository
         isOptional: true
         parameterType: NUMBER_INTEGER
+      sdg_repo_secret:
+        description: SDG parameter. Points to a secret name holding access info/credentials
+          for a private sdg_repo_url.
+        isOptional: true
+        parameterType: STRING
       sdg_repo_url:
         defaultValue: https://github.com/instructlab/taxonomy.git
         description: SDG parameter. Points to a taxonomy git repository
@@ -2183,6 +2271,16 @@ root:
         description: SDG parameter. The total number of instructions to be generated.
         isOptional: true
         parameterType: NUMBER_INTEGER
+      sdg_teacher_secret:
+        defaultValue: judge-server
+        description: SDG parameter. Points to a secret name holding access info/credentials
+          to access a Teacher server.
+        isOptional: true
+        parameterType: STRING
+      train_cpu_count:
+        description: Training parameter. CPU count used for each training pod, applies
+          to both limits & requests.
+        parameterType: STRING
       train_effective_batch_size_phase_1:
         defaultValue: 128.0
         description: Training parameter for in Phase 1. The number of samples in a
@@ -2195,6 +2293,12 @@ root:
           batch that the model should see before its parameters are updated.
         isOptional: true
         parameterType: NUMBER_INTEGER
+      train_gpu_identifier:
+        defaultValue: nvidia.com/gpu
+        description: Training parameter. Type of Pod accelerator used for training
+          (e.g. "nvidia.com/gpu") .
+        isOptional: true
+        parameterType: STRING
       train_learning_rate_phase_1:
         defaultValue: 2.0e-05
         description: Training parameter for in Phase 1. How fast we optimize the weights
@@ -2217,15 +2321,24 @@ root:
           will be handled in a single step.
         isOptional: true
         parameterType: NUMBER_INTEGER
+      train_memory_count:
+        description: Training parameter. Memory count used for each training pod,
+          applies to both limits & requests.
+        parameterType: STRING
       train_nnodes:
         defaultValue: 2.0
-        description: Training parameter. Number of nodes/workers to train on.
+        description: Training parameter. Number of pods used per training phase (1
+          & 2).
         isOptional: true
         parameterType: NUMBER_INTEGER
+      train_node_selectors:
+        description: Training parameter. A JSON of Pod NodeSelectors applied to each
+          training pod.
+        isOptional: true
+        parameterType: STRUCT
       train_nproc_per_node:
         defaultValue: 2.0
-        description: Training parameter. Number of GPUs per each node/worker to use
-          for training.
+        description: Training parameter. Number of GPUs used per training Pod.
         isOptional: true
         parameterType: NUMBER_INTEGER
       train_num_epochs_phase_1:
@@ -2263,14 +2376,13 @@ root:
         description: Training parameter. Random seed for initializing training.
         isOptional: true
         parameterType: NUMBER_INTEGER
-  outputDefinitions:
-    artifacts:
-      generate-metrics-report-op-metrics:
-        artifactType:
-          schemaTitle: system.Metrics
-          schemaVersion: 0.0.1
+      train_tolerations:
+        description: Training parameter. A list of Pod tolerations applied to each
+          training pod.
+        isOptional: true
+        parameterType: LIST
 schemaVersion: 2.1.0
-sdkVersion: kfp-2.9.0
+sdkVersion: kfp-2.11.0
 ---
 platforms:
   kubernetes:
@@ -2279,93 +2391,148 @@ platforms:
         exec-data-processing-op:
           pvcMount:
           - mountPath: /model
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc-2
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc-2
           - mountPath: /data
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc
         exec-generate-metrics-report-op:
           pvcMount:
           - mountPath: /output
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc-3
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc-3
         exec-git-clone-op:
           configMapAsVolume:
           - configMapName: teacher-server
+            configNameParameter:
+              runtimeValue:
+                constant: teacher-server
             mountPath: /tmp/cert
             optional: false
           pvcMount:
           - mountPath: /data
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc
         exec-knowledge-processed-data-to-artifact-op:
           pvcMount:
           - mountPath: /data
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc
         exec-model-to-pvc-op:
           pvcMount:
           - mountPath: /model
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc-2
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc-2
         exec-pvc-to-mmlu-branch-op:
           pvcMount:
           - mountPath: /output
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc-3
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc-3
         exec-pvc-to-model-op:
           pvcMount:
           - mountPath: /output
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc-3
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc-3
         exec-pvc-to-mt-bench-branch-op:
           pvcMount:
           - mountPath: /output
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc-3
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc-3
         exec-pvc-to-mt-bench-op:
           pvcMount:
           - mountPath: /output
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc-3
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc-3
         exec-pytorch-job-launcher-op-2:
           pvcMount:
           - mountPath: /output
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc-3
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc-3
         exec-run-final-eval-op:
-          configMapAsEnv:
-          - configMapName: judge-server
-            keyToEnv:
-            - configMapKey: endpoint
-              envVar: JUDGE_ENDPOINT
-            - configMapKey: model
-              envVar: JUDGE_NAME
           configMapAsVolume:
           - configMapName: judge-server
+            configNameParameter:
+              runtimeValue:
+                constant: judge-server
             mountPath: /tmp/cert
             optional: false
           pvcMount:
           - mountPath: /output
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc-3
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc-3
           - mountPath: /input
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc
           - mountPath: /model
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc-2
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc-2
@@ -2373,21 +2540,26 @@ platforms:
           - keyToEnv:
             - envVar: JUDGE_API_KEY
               secretKey: api_key
-            secretName: judge-server
+            - envVar: JUDGE_NAME
+              secretKey: model
+            - envVar: JUDGE_ENDPOINT
+              secretKey: endpoint
+            secretNameParameter:
+              componentInputParameter: eval_judge_secret
         exec-run-mt-bench-op:
-          configMapAsEnv:
-          - configMapName: judge-server
-            keyToEnv:
-            - configMapKey: endpoint
-              envVar: JUDGE_ENDPOINT
-            - configMapKey: model
-              envVar: JUDGE_NAME
           configMapAsVolume:
           - configMapName: judge-server
+            configNameParameter:
+              runtimeValue:
+                constant: judge-server
             mountPath: /tmp/cert
             optional: false
           pvcMount:
           - mountPath: /output
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc-3
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc-3
@@ -2395,21 +2567,26 @@ platforms:
           - keyToEnv:
             - envVar: JUDGE_API_KEY
               secretKey: api_key
-            secretName: judge-server
+            - envVar: JUDGE_NAME
+              secretKey: model
+            - envVar: JUDGE_ENDPOINT
+              secretKey: endpoint
+            secretNameParameter:
+              componentInputParameter: eval_judge_secret
         exec-sdg-op:
-          configMapAsEnv:
-          - configMapName: teacher-server
-            keyToEnv:
-            - configMapKey: endpoint
-              envVar: endpoint
-            - configMapKey: model
-              envVar: model
           configMapAsVolume:
           - configMapName: teacher-server
+            configNameParameter:
+              runtimeValue:
+                constant: teacher-server
             mountPath: /tmp/cert
             optional: false
           pvcMount:
           - mountPath: /data
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc
@@ -2417,22 +2594,39 @@ platforms:
           - keyToEnv:
             - envVar: api_key
               secretKey: api_key
-            secretName: teacher-server
+            - envVar: model
+              secretKey: model
+            - envVar: endpoint
+              secretKey: endpoint
+            secretNameParameter:
+              componentInputParameter: sdg_teacher_secret
         exec-sdg-to-artifact-op:
           pvcMount:
           - mountPath: /data
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc
         exec-skills-processed-data-to-artifact-op:
           pvcMount:
           - mountPath: /data
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc
         exec-taxonomy-to-artifact-op:
           pvcMount:
           - mountPath: /data
+            pvcNameParameter:
+              taskOutputParameter:
+                outputParameterKey: name
+                producerTask: createpvc
             taskOutputParameter:
               outputParameterKey: name
               producerTask: createpvc

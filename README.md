@@ -88,8 +88,6 @@ apiVersion: v1
 metadata:
   name: teacher-server
 data:
-  endpoint: '<YOUR_MIXTRAL_MODEL_ENDPOINT>'
-  model: mixtral
   ca.crt: |  # If using TLS
     -----BEGIN CERTIFICATE-----
     <TLS Certificate to Teacher Model>
@@ -100,9 +98,11 @@ data:
 kind: Secret
 apiVersion: v1
 metadata:
-  name: teacher-server
+  name: teacher-server 
 data:
   api_key: <YOUR_MIXTRAL_API_KEY>
+  endpoint: '<YOUR_MIXTRAL_MODEL_ENDPOINT>'
+  model: mixtral
 type: Opaque
 ```
 
@@ -112,8 +112,6 @@ apiVersion: v1
 metadata:
   name: judge-server
 data:
-  endpoint: '<YOUR_PROMETHEUS_MODEL_ENDPOINT>'
-  model: prometheus
   ca.crt: |  # If using TLS
     -----BEGIN CERTIFICATE-----
     <TLS Certificate to Judge Model>
@@ -127,6 +125,8 @@ metadata:
   name: judge-server
 data:
   api_key: <YOUR_PROMETHEUS_API_KEY>
+  endpoint: '<YOUR_PROMETHEUS_MODEL_ENDPOINT>'
+  model: prometheus
 type: Opaque
 ```
 
@@ -149,35 +149,35 @@ Once the pipeline is uploaded we will be able to select **"Create run"** from th
 
 #### Available Pipeline Parameters:
 
-| Parameter | Definition |
-|---------- | ---------- |
-|`sdg_repo_url` | SDG parameter. Points to a taxonomy git repository|
-|`sdg_repo_branch` | SDG parameter. Points to a branch within the taxonomy git repository. If set, has priority over sdg_repo_pr|
-|`sdg_repo_pr` |SDG parameter. Points to a pull request against the taxonomy git repository|
-|`sdg_base_model` |SDG parameter. LLM model used to generate the synthetic dataset|
-|`sdg_scale_factor` |SDG parameter. The total number of instructions to be generated|
-|`sdg_pipeline` |SDG parameter. Data generation pipeline to use. Available: 'simple', 'full', or a valid path to a directory of pipeline workflow YAML files. Note that 'full' requires a larger teacher model, Mixtral-8x7b.|
-|`sdg_max_batch_len` |SDG parameter. Maximum tokens per gpu for each batch that will be handled in a single step.|
-|`train_nproc_per_node` |Training parameter. Number of GPUs per each node/worker to use for training.|
-|`train_nnodes` |Training parameter. Number of nodes/workers to train on.|
-|`train_num_epochs_phase_1` |Training parameter for in Phase 1. Number of epochs to run training.|
-|`train_num_epochs_phase_2` |Training parameter for in Phase 2. Number of epochs to run training.|
-|`train_effective_batch_size_phase_1` |Training parameter for in Phase 1. The number of samples in a batch that the model should see before its parameters are updated.|
-|`train_effective_batch_size_phase_2` |Training parameter for in Phase 2. The number of samples in a batch that the model should see before its parameters are updated.|
-|`train_learning_rate_phase_1` |Training parameter for in Phase 1. How fast we optimize the weights during gradient descent. Higher values may lead to unstable learning performance. It's generally recommended to have a low learning rate with a high effective batch size.|
-|`train_learning_rate_phase_2` |Training parameter for in Phase 2. How fast we optimize the weights during gradient descent. Higher values may lead to unstable learning performance. It's generally recommended to have a low learning rate with a high effective batch size.|
-|`train_num_warmup_steps_phase_1` |Training parameter for in Phase 1. The number of steps a model should go through before reaching the full learning rate. We start at 0 and linearly climb up to train_learning_rate.|
-|`train_num_warmup_steps_phase_2` |Training parameter for in Phase 2. The number of steps a model should go through before reaching the full learning rate. We start at 0 and linearly climb up to train_learning_rate.|
-|`train_save_samples` |Training parameter. Number of samples the model should see before saving a checkpoint.|
-|`train_max_batch_len` |Training parameter. Maximum tokens per gpu for each batch that will be handled in a single step.|
-|`train_seed` |Training parameter. Random seed for initializing training.|
-|`mt_bench_max_workers` |MT Bench parameter. Number of workers to use for evaluation with mt_bench or mt_bench_branch. Must be a positive integer or 'auto'.|
-|`mt_bench_merge_system_user_message` |MT Bench parameter. Boolean indicating whether to merge system and user messages (required for Mistral based judges)|
-|`final_eval_max_workers` |Final model evaluation parameter for MT Bench Branch. Number of workers to use for evaluation with mt_bench or mt_bench_branch. Must be a positive integer or 'auto'.|
-|`final_eval_few_shots` |Final model evaluation parameter for MMLU. Number of question-answer pairs provided in the context preceding the question used for evaluation.|
-|`final_eval_batch_size` |Final model evaluation parameter for MMLU. Batch size for evaluation. Valid values are a positive integer or 'auto' to select the largest batch size that will fit in memory.|
-|`final_eval_merge_system_user_message` |Final model evaluation parameter for MT Bench Branch. Boolean indicating whether to merge system and user messages (required for Mistral based judges)|
-|`k8s_storage_class_name` |A Kubernetes StorageClass name for persistent volumes. Selected StorageClass must support RWX PersistentVolumes.|
+| Parameter                              | Definition                                                                                                                                                                                                                                     |
+|----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `sdg_repo_url`                         | SDG parameter. Points to a taxonomy git repository                                                                                                                                                                                             |
+| `sdg_repo_branch`                      | SDG parameter. Points to a branch within the taxonomy git repository. If set, has priority over sdg_repo_pr                                                                                                                                    |
+| `sdg_repo_pr`                          | SDG parameter. Points to a pull request against the taxonomy git repository                                                                                                                                                                    |
+| `sdg_base_model`                       | SDG parameter. LLM model used to generate the synthetic dataset                                                                                                                                                                                |
+| `sdg_scale_factor`                     | SDG parameter. The total number of instructions to be generated                                                                                                                                                                                |
+| `sdg_pipeline`                         | SDG parameter. Data generation pipeline to use. Available: 'simple', 'full', or a valid path to a directory of pipeline workflow YAML files. Note that 'full' requires a larger teacher model, Mixtral-8x7b.                                   |
+| `sdg_max_batch_len`                    | SDG parameter. Maximum tokens per gpu for each batch that will be handled in a single step.                                                                                                                                                    |
+| `train_nproc_per_node`                 | Training parameter. Number of GPUs per each node/worker to use for training.                                                                                                                                                                   |
+| `train_nnodes`                         | Training parameter. Number of nodes/workers to train on.                                                                                                                                                                                       |
+| `train_num_epochs_phase_1`             | Training parameter for in Phase 1. Number of epochs to run training.                                                                                                                                                                           |
+| `train_num_epochs_phase_2`             | Training parameter for in Phase 2. Number of epochs to run training.                                                                                                                                                                           |
+| `train_effective_batch_size_phase_1`   | Training parameter for in Phase 1. The number of samples in a batch that the model should see before its parameters are updated.                                                                                                               |
+| `train_effective_batch_size_phase_2`   | Training parameter for in Phase 2. The number of samples in a batch that the model should see before its parameters are updated.                                                                                                               |
+| `train_learning_rate_phase_1`          | Training parameter for in Phase 1. How fast we optimize the weights during gradient descent. Higher values may lead to unstable learning performance. It's generally recommended to have a low learning rate with a high effective batch size. |
+| `train_learning_rate_phase_2`          | Training parameter for in Phase 2. How fast we optimize the weights during gradient descent. Higher values may lead to unstable learning performance. It's generally recommended to have a low learning rate with a high effective batch size. |
+| `train_num_warmup_steps_phase_1`       | Training parameter for in Phase 1. The number of steps a model should go through before reaching the full learning rate. We start at 0 and linearly climb up to train_learning_rate.                                                           |
+| `train_num_warmup_steps_phase_2`       | Training parameter for in Phase 2. The number of steps a model should go through before reaching the full learning rate. We start at 0 and linearly climb up to train_learning_rate.                                                           |
+| `train_save_samples`                   | Training parameter. Number of samples the model should see before saving a checkpoint.                                                                                                                                                         |
+| `train_max_batch_len`                  | Training parameter. Maximum tokens per gpu for each batch that will be handled in a single step.                                                                                                                                               |
+| `train_seed`                           | Training parameter. Random seed for initializing training.                                                                                                                                                                                     |
+| `mt_bench_max_workers`                 | MT Bench parameter. Number of workers to use for evaluation with mt_bench or mt_bench_branch. Must be a positive integer or 'auto'.                                                                                                            |
+| `mt_bench_merge_system_user_message`   | MT Bench parameter. Boolean indicating whether to merge system and user messages (required for Mistral based judges)                                                                                                                           |
+| `final_eval_max_workers`               | Final model evaluation parameter for MT Bench Branch. Number of workers to use for evaluation with mt_bench or mt_bench_branch. Must be a positive integer or 'auto'.                                                                          |
+| `final_eval_few_shots`                 | Final model evaluation parameter for MMLU. Number of question-answer pairs provided in the context preceding the question used for evaluation.                                                                                                 |
+| `final_eval_batch_size`                | Final model evaluation parameter for MMLU. Batch size for evaluation. Valid values are a positive integer or 'auto' to select the largest batch size that will fit in memory.                                                                  |
+| `final_eval_merge_system_user_message` | Final model evaluation parameter for MT Bench Branch. Boolean indicating whether to merge system and user messages (required for Mistral based judges)                                                                                         |
+| `k8s_storage_class_name`               | A Kubernetes StorageClass name for persistent volumes. Selected StorageClass must support RWX PersistentVolumes.                                                                                                                               |
 
 
 ### Customize the Pipeline

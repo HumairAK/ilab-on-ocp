@@ -70,19 +70,22 @@ JUDGE_CA_CERT_PATH = "/tmp/cert"
     description="InstructLab pipeline",
 )
 def ilab_pipeline(
-    # SDG phase
+    train_cpu_count: str,
+    train_memory_count: str,
     sdg_repo_url: str = "https://github.com/instructlab/taxonomy.git",
+    sdg_repo_secret: Optional[str] = None,
+    sdg_teacher_secret: str = "judge-server",
     sdg_repo_branch: Optional[str] = None,
-    sdg_repo_pr: Optional[
-        int
-    ] = None,  # FIXME: https://issues.redhat.com/browse/RHOAIRFE-467
+    sdg_repo_pr: Optional[int] = None,  # FIXME: https://issues.redhat.com/browse/RHOAIRFE-467
     sdg_base_model: str = "s3://<BUCKET>/<PATH_TO_MODEL>",
     sdg_scale_factor: int = 30,  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L125
     sdg_pipeline: str = "/usr/share/instructlab/sdg/pipelines/agentic",  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L122
     sdg_max_batch_len: int = 5000,  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L334
     sdg_sample_size: float = 1.0,  # FIXME: Not present in default config. Not configurable upstream at this point, capability added via https://github.com/instructlab/sdg/pull/432
-    # Training phase
+    train_tolerations: Optional[list] = None,
+    train_node_selectors: Optional[dict] = None,
     train_nproc_per_node: int = 2,  # FIXME: Not present in default config. Arbitrary value chosen to demonstrate multi-node multi-gpu capabilities. Needs proper reference architecture justification.
+    train_gpu_identifier: str = "nvidia.com/gpu",
     train_nnodes: int = 2,  # FIXME: Not present in default config. Arbitrary value chosen to demonstrate multi-node multi-gpu capabilities. Needs proper reference architecture justification.
     train_num_epochs_phase_1: int = 7,  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L364
     train_num_epochs_phase_2: int = 10,  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L377
@@ -95,21 +98,24 @@ def ilab_pipeline(
     train_save_samples: int = 250000,  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L393
     train_max_batch_len: int = 5000,  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L334
     train_seed: int = 42,  # https://github.com/instructlab/training/blob/v0.6.1/src/instructlab/training/main_ds.py#L901
-    # MT Bench
     mt_bench_max_workers: str = "auto",  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L74
     mt_bench_merge_system_user_message: bool = False,  # https://github.com/instructlab/instructlab/blob/v0.21.2/src/instructlab/model/evaluate.py#L474
-    # Final evaluation
     final_eval_max_workers: str = "auto",  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L74
     final_eval_few_shots: int = 5,  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L56
     final_eval_batch_size: str = "auto",  # https://github.com/instructlab/instructlab/blob/v0.21.2/tests/testdata/default_config.yaml#L52
     final_eval_merge_system_user_message: bool = False,  # https://github.com/instructlab/instructlab/blob/v0.21.2/src/instructlab/model/evaluate.py#L474
-    # Other options
+    eval_gpu_identifier: str = "nvidia.com/gpu",
+    eval_judge_secret: str = "teacher-server",
     k8s_storage_class_name: str = "standard",  # FIXME: https://github.com/kubeflow/pipelines/issues/11396, https://issues.redhat.com/browse/RHOAIRFE-470
 ):
     """InstructLab pipeline
 
     Args:
+        train_cpu_count: Training parameter. CPU count used for each training pod, applies to both limits & requests.
+        train_memory_count: Training parameter. Memory count used for each training pod, applies to both limits & requests.
         sdg_repo_url: SDG parameter. Points to a taxonomy git repository
+        sdg_repo_secret: SDG parameter. Points to a secret name holding access info/credentials for a private sdg_repo_url.
+        sdg_teacher_secret: SDG parameter. Points to a secret name holding access info/credentials to access a Teacher server.
         sdg_repo_branch: SDG parameter. Points to a branch within the taxonomy git repository. If set, has priority over sdg_repo_pr
         sdg_repo_pr: SDG parameter. Points to a pull request against the taxonomy git repository
         sdg_base_model: SDG parameter. LLM model used to generate the synthetic dataset
@@ -118,8 +124,11 @@ def ilab_pipeline(
         sdg_max_batch_len: SDG parameter. Maximum tokens per gpu for each batch that will be handled in a single step.
         sdg_sample_size: SDG parameter. Represents the sdg skills recipe sampling size as percentage in decimal form.
 
-        train_nproc_per_node: Training parameter. Number of GPUs per each node/worker to use for training.
-        train_nnodes: Training parameter. Number of nodes/workers to train on.
+        train_tolerations: Training parameter. A list of Pod tolerations applied to each training pod.
+        train_node_selectors: Training parameter. A JSON of Pod NodeSelectors applied to each training pod.
+        train_nproc_per_node: Training parameter. Number of GPUs used per training Pod.
+        train_gpu_identifier: Training parameter. Type of Pod accelerator used for training (e.g. "nvidia.com/gpu") .
+        train_nnodes: Training parameter. Number of pods used per training phase (1 & 2).
         train_num_epochs_phase_1: Training parameter for in Phase 1. Number of epochs to run training.
         train_num_epochs_phase_2: Training parameter for in Phase 2. Number of epochs to run training.
         train_effective_batch_size_phase_1: Training parameter for in Phase 1. The number of samples in a batch that the model should see before its parameters are updated.
@@ -139,6 +148,9 @@ def ilab_pipeline(
         final_eval_few_shots: Final model evaluation parameter for MMLU. Number of question-answer pairs provided in the context preceding the question used for evaluation.
         final_eval_batch_size: Final model evaluation parameter for MMLU. Batch size for evaluation. Valid values are a positive integer or 'auto' to select the largest batch size that will fit in memory.
         final_eval_merge_system_user_message: Final model evaluation parameter for MT Bench Branch. Boolean indicating whether to merge system and user messages (required for Mistral based judges)
+
+        eval_gpu_identifier: General evaluation parameter. Type of Pod accelerator used for Final & MT bench evaluation (e.g. "nvidia.com/gpu").
+        eval_judge_secret: General evaluation parameter. Points to a secret name holding access info/credentials to access a Judge server.
 
         k8s_storage_class_name: A Kubernetes StorageClass name for persistent volumes. Selected StorageClass must support RWX PersistentVolumes.
     """
@@ -178,10 +190,14 @@ def ilab_pipeline(
     )
     sdg_task.set_env_variable("HOME", "/tmp")
     sdg_task.set_env_variable("HF_HOME", "/tmp")
-    use_config_map_as_env(
-        sdg_task, TEACHER_CONFIG_MAP, dict(endpoint="endpoint", model="model")
-    )
-    use_secret_as_env(sdg_task, TEACHER_SECRET, {"api_key": "api_key"})
+
+    # Teacher server configs
+    use_secret_as_env(sdg_task, sdg_teacher_secret, {
+        "api_key": "api_key",
+        "model": "model",
+        "endpoint": "endpoint",
+    })
+
     use_config_map_as_volume(sdg_task, TEACHER_CONFIG_MAP, mount_path=SDG_CA_CERT_PATH)
     sdg_task.set_env_variable(
         SDG_CA_CERT_ENV_VAR_NAME, os.path.join(SDG_CA_CERT_PATH, SDG_CA_CERT_CM_KEY)
@@ -279,6 +295,11 @@ def ilab_pipeline(
     # Using pvc_create_task.output as PyTorchJob name since dsl.PIPELINE_* global variables do not template/work in KFP v2
     # https://github.com/kubeflow/pipelines/issues/10453
     training_phase_1 = pytorch_job_launcher_op(
+        gpu_identifier=train_gpu_identifier,
+        cpu_count=train_cpu_count,
+        memory_count=train_memory_count,
+        tolerations=train_tolerations,
+        node_selectors=train_node_selectors,
         model_pvc_name=model_pvc_task.output,
         input_pvc_name=sdg_input_pvc_task.output,
         name_suffix=sdg_input_pvc_task.output,
@@ -300,6 +321,11 @@ def ilab_pipeline(
 
     #### Train 2
     training_phase_2 = pytorch_job_launcher_op(
+        gpu_identifier=train_gpu_identifier,
+        cpu_count=train_cpu_count,
+        memory_count=train_memory_count,
+        tolerations=train_tolerations,
+        node_selectors=train_node_selectors,
         model_pvc_name=model_pvc_task.output,
         input_pvc_name=sdg_input_pvc_task.output,
         name_suffix=sdg_input_pvc_task.output,
@@ -340,16 +366,17 @@ def ilab_pipeline(
     )
     run_mt_bench_task.set_env_variable("HOME", "/tmp")
     run_mt_bench_task.set_env_variable("HF_HOME", "/tmp")
-    run_mt_bench_task.set_accelerator_type("nvidia.com/gpu")
+    run_mt_bench_task.set_accelerator_type(eval_gpu_identifier)
     run_mt_bench_task.set_accelerator_limit(1)
     run_mt_bench_task.set_caching_options(False)
     run_mt_bench_task.after(training_phase_2)
-    use_config_map_as_env(
-        run_mt_bench_task,
-        JUDGE_CONFIG_MAP,
-        dict(endpoint="JUDGE_ENDPOINT", model="JUDGE_NAME"),
-    )
-    use_secret_as_env(run_mt_bench_task, JUDGE_SECRET, {"api_key": "JUDGE_API_KEY"})
+
+    # Judge server configs
+    use_secret_as_env(run_mt_bench_task, eval_judge_secret, {
+        "api_key": "JUDGE_API_KEY",
+        "model": "JUDGE_NAME",
+        "endpoint": "JUDGE_ENDPOINT",
+    })
 
     use_config_map_as_volume(
         run_mt_bench_task, JUDGE_CONFIG_MAP, mount_path=JUDGE_CA_CERT_PATH
@@ -387,19 +414,17 @@ def ilab_pipeline(
         mount_path="/model",
     )
 
-    use_config_map_as_env(
-        final_eval_task,
-        JUDGE_CONFIG_MAP,
-        dict(endpoint="JUDGE_ENDPOINT", model="JUDGE_NAME"),
-    )
-
     final_eval_task.set_env_variable("HOME", "/tmp")
     final_eval_task.set_env_variable("HF_HOME", "/tmp")
 
     # uncomment if updating image with same tag
     # set_image_pull_policy(final_eval_task, "Always")
 
-    use_secret_as_env(final_eval_task, JUDGE_SECRET, {"api_key": "JUDGE_API_KEY"})
+    use_secret_as_env(final_eval_task, eval_judge_secret, {
+        "api_key": "JUDGE_API_KEY",
+        "model": "JUDGE_NAME",
+        "endpoint": "JUDGE_ENDPOINT",
+    })
 
     use_config_map_as_volume(
         final_eval_task, JUDGE_CONFIG_MAP, mount_path=JUDGE_CA_CERT_PATH
@@ -410,7 +435,7 @@ def ilab_pipeline(
     )
 
     final_eval_task.after(run_mt_bench_task)
-    final_eval_task.set_accelerator_type("nvidia.com/gpu")
+    final_eval_task.set_accelerator_type(eval_gpu_identifier)
     final_eval_task.set_accelerator_limit(1)
     final_eval_task.set_caching_options(False)
 

@@ -32,9 +32,6 @@ def run_final_eval_op(
     from instructlab.eval.mt_bench import MTBenchBranchEvaluator
     from instructlab.model.evaluate import qa_pairs_to_qna_to_avg_scores, sort_score
 
-    judge_api_key = os.getenv("JUDGE_API_KEY", "")
-    judge_model_name = os.getenv("JUDGE_NAME")
-    judge_endpoint = os.getenv("JUDGE_ENDPOINT")
     judge_ca_cert_path = os.getenv("JUDGE_CA_CERT_PATH")
     use_tls = os.path.exists(judge_ca_cert_path) and (
         os.path.getsize(judge_ca_cert_path) > 0
